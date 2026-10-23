@@ -31,9 +31,11 @@ li:first-child{border-top:0}
 .arrow{text-align:center;font-size:28px;color:var(--ac);margin:0}
 #splash{position:fixed;inset:0;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px}
 #splash img{width:200px;height:200px}
+#app{position:fixed;inset:0;width:100%;height:100%;border:0;background:#fff}
 </style>
 </head>
 <body>
+<iframe id="app" hidden title="Every Buddy 食事管理" allow="clipboard-write"></iframe>
 <div id="splash" hidden><img src="icon-192.png" alt="Every Buddy"><p class="mu">開いています…</p></div>
 <main id="main" hidden>
   <img class="logo" src="icon-192.png" alt="Every Buddy のロゴ">
@@ -52,16 +54,22 @@ li:first-child{border-top:0}
 (function(){
   var APP = 'https:\/\/script.google.com\/macros\/s\/AKfycbxjLxl6tyj0fFTrCKf3-d8ReBc0rVXJRxFEuKSR3YIDKj9j9WpFZKnoqp6VvL_buvZ-\/exec';
   var q = new URLSearchParams(location.search);
+  // アプリはこのページの中に表示する（Googleの「このアプリケーションは…」の帯を出さないため）
+  function show(src) {
+    var f = document.getElementById('app'), sp = document.getElementById('splash');
+    sp.hidden = false;
+    f.onload = function () { sp.hidden = true; };
+    f.src = src; f.hidden = false;
+  }
+  var join = (q.get('join') || '').replace(/[^0-9a-z]/gi, '');
+  if (join) { show(APP + '?join=' + join); return; }
   var t = (q.get('t') || '').replace(/[^0-9a-f]/gi, '');
   if (!t) { document.getElementById('nolink').hidden = false; return; }
   var appUrl = APP + '?t=' + t;
 
   // ホーム画面のアイコンから開いたとき（URLに home=1 が付いている）は、すぐアプリへ
-  if (q.get('home') === '1') {
-    document.getElementById('splash').hidden = false;
-    location.replace(appUrl);
-    return;
-  }
+  if (q.get('home') === '1') { show(appUrl + '&home=1'); return; }
+  if (q.get('open') === '1') { show(appUrl); return; }
 
   // このあとホーム画面に追加されると、今のURLがアイコンに保存される。
   // home=1 を付けておくことで、アイコンから開いたときはすぐアプリに進む。
@@ -98,7 +106,7 @@ li:first-child{border-top:0}
     html = '<p>スマホでこのページを開くと、追加のしかたが表示されます。</p>';
   }
   document.getElementById('steps').innerHTML = html;
-  document.getElementById('open').href = appUrl;
+  document.getElementById('open').href = '?t=' + t + '&open=1';
   document.getElementById('main').hidden = false;
 })();
 </script>
