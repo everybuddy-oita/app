@@ -58,7 +58,9 @@ li:first-child{border-top:0}
   function show(src) {
     var f = document.getElementById('app'), sp = document.getElementById('splash');
     sp.hidden = false;
-    f.onload = function () { sp.hidden = true; };
+    // アプリの準備ができたら（アプリから合図が来たら）ロゴの画面を消す
+    window.addEventListener('message', function (e) { if (e.data === 'eb-ready') sp.hidden = true; });
+    setTimeout(function () { sp.hidden = true; }, 20000);
     f.src = src; f.hidden = false;
   }
   var join = (q.get('join') || '').replace(/[^0-9a-z]/gi, '');
