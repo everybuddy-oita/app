@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>やせるバディ</title>
+<link rel="icon" href="icon-192.png">
+<style>
+:root{--bg:#f6faf7;--card:#fff;--tx:#1b2b22;--mu:#5d6f65;--ac:#2f6f57;--ln:#dfe9e3;--wa:#b45309}
+*{box-sizing:border-box}[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.7 system-ui,"Hiragino Sans","Noto Sans JP",sans-serif}
+main{max-width:480px;margin:0 auto;padding:24px 16px}
+h1{font-size:22px;margin:0;color:var(--ac);text-align:center}
+.sub{color:var(--mu);font-size:13px;text-align:center;margin:2px 0 16px}
+.card{background:var(--card);border:1px solid var(--ln);border-radius:16px;padding:18px;margin:14px 0}
+label{display:block;font-size:14px;color:var(--mu);margin-top:12px}
+input{width:100%;padding:12px;border:1px solid var(--ln);border-radius:10px;background:var(--bg);color:var(--tx);font:inherit;margin-top:4px}
+.btn{display:block;width:100%;text-align:center;border:0;border-radius:12px;padding:14px;margin-top:14px;background:var(--ac);color:#fff;font:inherit;font-weight:700;font-size:17px;text-decoration:none;cursor:pointer}
+.btn.s{background:#fff;color:var(--ac);border:2px solid var(--ac)}
+.warn{color:var(--wa)}.mu{color:var(--mu);font-size:14px}
+.spn{width:36px;height:36px;margin:10px auto;border:4px solid #cfe7da;border-top-color:var(--ac);border-radius:50%;animation:r 1s linear infinite}@keyframes r{to{transform:rotate(360deg)}}
+</style></head><body><main>
+<h1>やせるバディ</h1><div class="sub">by Every Buddy</div>
+
+<div class="card" id="wait" style="text-align:center"><div class="spn"></div><b>アプリを開いています…</b><p class="mu" style="margin:4px 0 0">数秒お待ちください。</p></div>
+
+<div class="card" id="choose" hidden>
+  <b style="font-size:18px">ようこそ！</b>
+  <p class="mu" style="margin:6px 0 4px">あてはまる方を押してください。</p>
+  <button class="btn" id="bNew" type="button">はじめて使う</button>
+  <button class="btn s" id="bOld" type="button">もう使っている</button>
+</div>
+
+<div class="card" id="old" hidden>
+  <b style="font-size:18px">今の記録とつなぎます</b>
+  <ol style="padding-left:20px;margin:8px 0">
+    <li>いつも使っている「やせるバディ」を開きます（ホーム画面のアイコン、または前に届いたリンク）。</li>
+    <li>ホームに出ている緑の<b>「LINEとつなぐ（1回だけ）」</b>を押します。</li>
+  </ol>
+  <p class="mu">これで、次からはLINEのメニューから開けるようになります。</p>
+  <button class="btn s" type="button" onclick="show('choose')">戻る</button>
+</div>
+
+<div class="card" id="form" hidden>
+  <b style="font-size:18px">はじめに、お名前を教えてください</b>
+  <label for="r">本名（フルネーム）</label><input id="r" maxlength="40" placeholder="例：田中 花子" autocomplete="name">
+  <label for="n">ニックネーム（アプリ内での呼び方）</label><input id="n" maxlength="40" placeholder="例：はなちゃん" autocomplete="off">
+  <button class="btn" id="bJoin" type="button">登録してはじめる</button>
+  <p class="warn" id="fm"></p>
+  <button class="btn s" type="button" onclick="show('choose')">戻る</button>
+</div>
+
+<div class="card" id="err" hidden><b>うまく開けませんでした</b><p class="warn" id="em"></p><button class="btn" type="button" onclick="location.reload()">もう一度開く</button><p class="mu">何度やってもうまくいかないときは、Every Buddyの公式LINEでお知らせください。</p></div>
+
+<script charset="utf-8" src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<script>
+var LIFF_ID='2012243192-h0USLKye';
+var EXEC='https://script.google.com/macros/s/AKfycbxjLxl6tyj0fFTrCKf3-d8ReBc0rVXJRxFEuKSR3YIDKj9j9WpFZKnoqp6VvL_buvZ-/exec';
+var Q={};
+function show(id){['wait','choose','old','form','err'].forEach(function(x){document.getElementById(x).hidden=x!==id})}
+function fail(m){document.getElementById('em').textContent=m||'通信がうまくいきませんでした。';show('err')}
+function api(body){return fetch(EXEC,{method:'POST',body:JSON.stringify({liff:body})}).then(function(r){return r.json()})}
+function go(t){location.replace(EXEC+'?t='+encodeURIComponent(t)+'&liff=1')}
+function handle(r,retry){
+  if(r&&r.t){go(r.t);return}
+  if(r&&r.expired&&!retry){try{liff.logout()}catch(e){}liff.login({redirectUri:location.href});return}
+  if(r&&r.status==='new'){if(r.name)document.getElementById('n').value=r.name;show('choose');return}
+  fail(r&&r.error);
+}
+function start(){
+  var p=new URLSearchParams(location.search);Q.t=p.get('t')||'';Q.src=p.get('src')||'';
+  var idt=liff.getIDToken();if(!idt){liff.login({redirectUri:location.href});return}
+  api({a:'auth',idt:idt,t:Q.t,src:Q.src}).then(function(r){handle(r)}).catch(function(){fail()});
+}
+document.getElementById('bNew').onclick=function(){show('form')};
+document.getElementById('bOld').onclick=function(){show('old')};
+document.getElementById('bJoin').onclick=function(){
+  var b=this,n=document.getElementById('n').value.trim(),r=document.getElementById('r').value.trim(),m=document.getElementById('fm');
+  if(!r){m.textContent='本名を入力してください。';return}if(!n){m.textContent='ニックネームを入力してください。';return}
+  b.disabled=true;b.textContent='登録しています…';
+  api({a:'join',idt:liff.getIDToken(),name:n,real:r,src:Q.src}).then(function(x){if(x&&x.t){go(x.t);return}b.disabled=false;b.textContent='登録してはじめる';m.textContent=(x&&x.error)||'うまくいきませんでした。もう一度お試しください。'}).catch(function(){b.disabled=false;b.textContent='登録してはじめる';m.textContent='通信がうまくいきませんでした。もう一度お試しください。'});
+};
+liff.init({liffId:LIFF_ID}).then(function(){if(!liff.isLoggedIn()){liff.login({redirectUri:location.href});return}start()}).catch(function(e){fail('LINEの準備ができませんでした。（'+(e&&e.message||e)+'）')});
+</script>
+</main></body></html>
