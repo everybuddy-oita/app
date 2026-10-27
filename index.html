@@ -94,20 +94,27 @@ li:first-child{border-top:0}
       step(1, '', '下の緑のボタンを押してください。') +
       step(2, ios ? ic.share : ic.dots, ios ? '開かないときは、画面の下にある <b>共有マーク</b> を押して「<b>Safariで開く</b>」を選んでください。' : '開かないときは、画面の右上にある <b>︙</b> を押して「<b>ブラウザで開く</b>」を選んでください。') +
       '</ol><a class="btn" href="?t=' + t + '&openExternalBrowser=1">ブラウザで開き直す</a>';
-  } else if (ios) {
-    html = '<ol>' +
+  } else {
+    var iosHtml = '<p style="margin:0 0 4px"><b>iPhoneは「Safari」で開いてください。</b></p><ol>' +
       step(1, ic.share, '画面の下（または上）にある <b>共有マーク</b> を押します。見つからないときは <b>…</b> を押すと出てきます。') +
       step(2, ic.add, '出てきた一覧を下へずらして「<b>ホーム画面に追加</b>」を押します。') +
       step(3, '', '右上の「<b>追加</b>」を押したら完了です。ホーム画面にこのロゴが出ます！') + '</ol>';
-  } else if (android) {
-    html = '<ol>' +
+    var andHtml = '<p style="margin:0 0 4px"><b>Androidは「Chrome」で開いてください。</b></p><ol>' +
       step(1, ic.dots, '画面の右上にある <b>︙</b>（点が3つ）を押します。') +
       step(2, ic.add, '「<b>ホーム画面に追加</b>」を押します。') +
-      step(3, '', '「<b>追加</b>」を押したら完了です。ホーム画面にこのロゴが出ます！') + '</ol>';
-  } else {
-    html = '<p>スマホでこのページを開くと、追加のしかたが表示されます。</p>';
+      step(3, '', '「<b>追加</b>」（または「インストール」）を押したら完了です。ホーム画面にこのロゴが出ます！') + '</ol>' +
+      '<p class="mu" style="margin:6px 0 0">Galaxyの「インターネット」アプリのときは、右下の <b>≡</b> →「<b>ページを追加</b>」→「<b>ホーム画面</b>」の順に押してください。</p>';
+    var tb = function (id, label, on) { return '<button type="button" data-os="' + id + '" style="flex:1;padding:10px;border-radius:10px;font:inherit;font-weight:700;border:2px solid #1f9d62;' + (on ? 'background:#1f9d62;color:#fff' : 'background:#fff;color:#1f9d62') + '">' + label + '</button>'; };
+    var first = android ? 'and' : 'ios';
+    html = '<div id="ostabs" style="display:flex;gap:8px;margin-bottom:10px">' + tb('ios', '📱 iPhoneの方', first === 'ios') + tb('and', '🤖 Androidの方', first === 'and') + '</div><div id="osbody">' + (first === 'ios' ? iosHtml : andHtml) + '</div>';
+    document.getElementById('steps').innerHTML = html;
+    document.getElementById('ostabs').onclick = function (e) {
+      var b = e.target.closest('button'); if (!b) return;
+      document.getElementById('osbody').innerHTML = b.dataset.os === 'ios' ? iosHtml : andHtml;
+      [].forEach.call(document.querySelectorAll('#ostabs button'), function (x) { var on = x === b; x.style.background = on ? '#1f9d62' : '#fff'; x.style.color = on ? '#fff' : '#1f9d62'; });
+    };
   }
-  document.getElementById('steps').innerHTML = html;
+  if (inApp) document.getElementById('steps').innerHTML = html;
   document.getElementById('open').href = '?t=' + t + '&open=1';
   document.getElementById('main').hidden = false;
 })();
