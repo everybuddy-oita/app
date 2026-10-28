@@ -38,6 +38,7 @@ li:first-child{border-top:0}
 <iframe id="app" hidden title="やせるバディ" allow="clipboard-write"></iframe>
 <div id="splash" hidden><img src="icon-192.png" alt="やせるバディ"><p class="mu">開いています…</p></div>
 <main id="main" hidden>
+  <a id="back" style="display:inline-block;color:#1f9d62;font-weight:700;text-decoration:none;padding:6px 0;font-size:17px">← アプリに戻る</a>
   <img class="logo" src="icon-192.png" alt="やせるバディ のロゴ">
   <h1>ホーム画面に追加しましょう</h1>
   <p class="lead">このページをホーム画面に追加すると、<br>このロゴのアイコンから、ワンタッチで食事管理アプリが開けます。</p>
@@ -116,6 +117,7 @@ li:first-child{border-top:0}
   }
   if (inApp) document.getElementById('steps').innerHTML = html;
   document.getElementById('open').href = '?t=' + t + '&open=1';
+  document.getElementById('back').href = '?t=' + t + '&open=1';
   document.getElementById('main').hidden = false;
 })();
 </script>
