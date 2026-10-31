@@ -49,7 +49,8 @@ const NEAR=0.6;       // これより手前は描かない
 const toKata=s=>s.replace(/[ぁ-ゖ]/g,c=>String.fromCharCode(c.charCodeAt(0)+0x60));
 const COLORS=['#ff4d4d','#ff9f1c','#ffd60a','#2ec4b6','#3a86ff','#8338ec','#ff006e'];
 let blocks=[],queue=[],camZ=0,camZTarget=0,shake=0;
-let vol=0,peak=0,camOn=false,vertical=false;
+let vol=0,peak=0,camOn=false,vertical=false,aim=null;
+const G=0.0018;
 
 // 3D → 画面
 function proj(x,y,z){const d=z-camZ;if(d<NEAR)return null;const s=F/d;return{x:W/2+x*s,y:HZ-(y-CAM_H)*s,s}}
@@ -63,12 +64,29 @@ function launch(text,power){
   const size=0.5+power*0.9;
   const sideways=(Math.random()-.5)*0.04;
   const chars=[...text],n=chars.length,gap=size*0.95;
-  chars.forEach((ch,i)=>queue.push({at:performance.now()+(vertical?0:i*40),b:{
+  // ねらい（タップ位置）の地面座標
+  let tgt=null;
+  if(aim){
+    const dy=Math.max(aim.y-HZ,H*0.004);
+    let d=Math.min(F*CAM_H/dy,80);
+    tgt={x:(aim.x-W/2)*d/F,z:camZ+d};
+  }
+  chars.forEach((ch,i)=>queue.push({at:performance.now()+(vertical?0:i*40),b:makeBlock(ch,i)}));
+  function makeBlock(ch,i){
+    const b={
     ch,size,color,
     x:vertical?0:(i-(n-1)/2)*gap*0.8, y:CAM_H-0.9+(vertical?((n-1)/2-i)*gap*0.8:0), z:camZ+1.3,
     stack:vertical?n-1-i:0, gapY:gap*0.8,
     vx:vertical?sideways:(i-(n-1)/2)*gap*0.004+sideways, vy:0.035+power*0.05, vz:0.07+power*0.22,
-    rot:0, vr:(Math.random()-.5)*0.02, rest:false}}));
+    rot:0, vr:(Math.random()-.5)*0.02, rest:false};
+    if(tgt){
+      const off=vertical?0:(i-(n-1)/2)*gap*0.8;
+      const vz=0.1+power*0.2, T=Math.max(10,(tgt.z-b.z)/vz);
+      const floor=b.size*0.45+b.stack*b.gapY;
+      b.vz=vz; b.vx=(tgt.x+off-b.x)/T; b.vy=(floor-b.y+G*T*T/2)/T;
+    }
+    return b;
+  }
   shake=power*16*DPR;
 }
 
@@ -114,7 +132,7 @@ function step(){
   if(blocks.length>150)blocks.splice(0,blocks.length-150);
   for(const b of blocks){
     if(b.rest)continue;
-    b.vy-=0.0018;b.x+=b.vx;b.y+=b.vy;b.z+=b.vz;b.rot+=b.vr;
+    b.vy-=G;b.x+=b.vx;b.y+=b.vy;b.z+=b.vz;b.rot+=b.vr;
     const floor=b.size*0.45+b.stack*b.gapY;
     if(b.y<floor){b.y=floor;b.vy*=-0.4;b.vz*=0.6;b.vx*=0.6;b.vr*=0.5;
       if(Math.abs(b.vy)<0.01&&b.vz<0.02){b.rest=true;b.rot*=0.3}}
@@ -123,6 +141,7 @@ function step(){
   if(shake>0){ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);shake*=0.85;if(shake<.5)shake=0}
   if(camOn)ctx.clearRect(-50,-50,W+100,H+100);else drawGround();
   // 奥のものから描く
+  if(aim){ctx.strokeStyle='#ff3b00';ctx.lineWidth=4*DPR;const R=22*DPR;ctx.beginPath();ctx.arc(aim.x,aim.y,R,0,Math.PI*2);ctx.moveTo(aim.x-R*1.5,aim.y);ctx.lineTo(aim.x+R*1.5,aim.y);ctx.moveTo(aim.x,aim.y-R*1.5);ctx.lineTo(aim.x,aim.y+R*1.5);ctx.stroke()}
   [...blocks].sort((a,b)=>b.z-a.z).forEach(drawBlock);
   document.getElementById('bar').style.width=Math.min(100,vol*300)+'%';
   requestAnimationFrame(step);
@@ -183,6 +202,7 @@ document.getElementById('camBtn').onclick=async function(){
   }catch(e){document.getElementById('msg').textContent='カメラが使えません。ブラウザの設定でカメラを許可してね'}
 };
 document.getElementById('dirBtn').onclick=function(){vertical=!vertical;this.textContent='文字：'+(vertical?'縦':'横')};
+cv.addEventListener('pointerdown',e=>{aim={x:e.clientX*DPR,y:e.clientY*DPR};if(!audioOn)launch(document.getElementById('txt').value||'ドーン',0.8)});
 const fire=()=>{const t=document.getElementById('txt');launch(t.value||'ドーン',0.8);t.value=''};
 document.getElementById('fire').onclick=fire;
 document.getElementById('txt').addEventListener('keydown',e=>{if(e.key==='Enter')fire()});
