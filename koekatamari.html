@@ -149,10 +149,10 @@ function step(){
 step();
 
 // マイク音量
-let audioOn=false,rec=null,recOK=false;
+let audioOn=false,rec=null,recOK=false,micStream=null,ac=null;
 async function startAudio(){
-  const stream=await navigator.mediaDevices.getUserMedia({audio:true});
-  const ac=new (window.AudioContext||window.webkitAudioContext)();
+  const stream=micStream=await navigator.mediaDevices.getUserMedia({audio:true});
+  ac=new (window.AudioContext||window.webkitAudioContext)();
   const src=ac.createMediaStreamSource(stream),an=ac.createAnalyser();an.fftSize=1024;src.connect(an);
   const buf=new Float32Array(an.fftSize);
   let loud=0,quiet=0;
@@ -162,7 +162,7 @@ async function startAudio(){
     if(!recOK){
       if(vol>0.12){loud++;quiet=0}else{quiet++; if(loud>8&&quiet>10){launch(['ワー','オー','ドーン','ヤー'][Math.floor(Math.random()*4)],peak*3);loud=0;peak=0}}
     }
-    requestAnimationFrame(loop);
+    if(audioOn||!micStream)requestAnimationFrame(loop);
   })();
 }
 function startRec(){
@@ -186,8 +186,20 @@ function startRec(){
   rec.onerror=e=>{if(e.error==='not-allowed'){recOK=false;document.getElementById('msg').textContent='文字起こしが使えません。大声で「ワー！」が飛ぶよ'}};
   rec.start();
 }
+// マイク・カメラをきちんと止める
+function stopAll(){
+  audioOn=false;recOK=false;
+  const m=document.getElementById('mic');m.classList.remove('on');m.textContent='START';
+  try{rec&&(rec.onend=null,rec.abort())}catch(e){};rec=null;
+  if(micStream){micStream.getTracks().forEach(t=>t.stop());micStream=null}
+  try{ac&&ac.close()}catch(e){};ac=null;vol=0;
+  const v=document.getElementById('cam');
+  if(v.srcObject){v.srcObject.getTracks().forEach(t=>t.stop());v.srcObject=null;v.style.display='none';camOn=false;document.getElementById('camBtn').textContent='📷 カメラ OFF'}
+}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)stopAll()});
+addEventListener('pagehide',stopAll);
 document.getElementById('mic').onclick=async function(){
-  if(audioOn){audioOn=false;this.classList.remove('on');this.textContent='START';try{rec&&rec.stop()}catch(e){};return}
+  if(audioOn){stopAll();return}
   try{await startAudio()}catch(e){document.getElementById('msg').textContent='マイクが使えません。下の入力欄から発射してね';return}
   audioOn=true;this.classList.add('on');this.textContent='STOP';
   document.getElementById('msg').textContent='さけべ！大きい声ほどデカく遠くへ飛ぶ！';
