@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>声カタマリ</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#7fd3ff;font-family:"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;touch-action:none}
+  canvas{position:fixed;inset:0}
+  #ui{position:fixed;left:0;right:0;bottom:0;padding:12px;display:flex;flex-direction:column;gap:8px;align-items:center;z-index:2}
+  #mic{width:96px;height:96px;border-radius:50%;border:6px solid #fff;background:#ff5a3c;color:#fff;font-size:20px;font-weight:900;box-shadow:0 6px 0 #b8321b;cursor:pointer}
+  #mic.on{background:#2fbf4a;box-shadow:0 6px 0 #187a2b;animation:pulse 1s infinite}
+  @keyframes pulse{50%{transform:scale(1.07)}}
+  #meter{width:220px;height:12px;background:#fff8;border-radius:6px;overflow:hidden}
+  #bar{height:100%;width:0;background:linear-gradient(90deg,#ffd000,#ff3b00)}
+  #row{display:flex;gap:6px;width:min(92vw,420px)}
+  #txt{flex:1;font-size:16px;padding:10px;border-radius:10px;border:2px solid #fff}
+  button.s{font-size:15px;font-weight:700;padding:10px 12px;border-radius:10px;border:none;background:#fff;color:#ff5a3c}
+  #msg{position:fixed;top:10px;left:0;right:0;text-align:center;font-weight:700;color:#124;text-shadow:0 1px 0 #fff;z-index:2;padding:0 10px}
+  #heard{position:fixed;top:40px;left:0;right:0;text-align:center;color:#124;opacity:.7;font-size:14px;z-index:2}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="msg">ボタンを押して大声でさけんでね！声が文字のカタマリになって奥へ飛んでいくよ</div>
+<div id="heard"></div>
+<div id="ui">
+  <div id="meter"><div id="bar"></div></div>
+  <button id="mic">START</button>
+  <div id="row">
+    <input id="txt" placeholder="文字を入れて発射もできる">
+    <button class="s" id="fire">発射</button>
+    <button class="s" id="clear">消す</button>
+  </div>
+</div>
+<script>
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const DPR=devicePixelRatio||1;
+let W,H,HZ,F;
+function resize(){W=cv.width=innerWidth*DPR;H=cv.height=innerHeight*DPR;cv.style.width=innerWidth+'px';cv.style.height=innerHeight+'px';HZ=H*0.42;F=Math.min(W,H)*0.9}
+addEventListener('resize',resize);resize();
+
+const CAM_H=1.6;      // 目線の高さ
+const NEAR=0.6;       // これより手前は描かない
+const toKata=s=>s.replace(/[ぁ-ゖ]/g,c=>String.fromCharCode(c.charCodeAt(0)+0x60));
+const COLORS=['#ff4d4d','#ff9f1c','#ffd60a','#2ec4b6','#3a86ff','#8338ec','#ff006e'];
+let blocks=[],queue=[],camZ=0,camZTarget=0,shake=0;
+let vol=0,peak=0;
+
+// 3D → 画面
+function proj(x,y,z){const d=z-camZ;if(d<NEAR)return null;const s=F/d;return{x:W/2+x*s,y:HZ-(y-CAM_H)*s,s}}
+
+// 文字のカタマリを発射（1文字ずつ少し遅れて連なって飛ぶ）
+function launch(text,power){
+  text=toKata(text).replace(/\s/g,'');
+  if(!text)return;
+  power=Math.max(0.25,Math.min(1,power));
+  const color=COLORS[Math.floor(Math.random()*COLORS.length)];
+  const size=0.5+power*0.9;
+  const sideways=(Math.random()-.5)*0.04;
+  const chars=[...text],n=chars.length,gap=size*0.95;
+  chars.forEach((ch,i)=>queue.push({at:performance.now()+i*40,b:{
+    ch,size,color,
+    x:(i-(n-1)/2)*gap*0.8, y:CAM_H-0.9, z:camZ+1.3,
+    vx:(i-(n-1)/2)*gap*0.004+sideways, vy:0.035+power*0.05, vz:0.07+power*0.22,
+    rot:0, vr:(Math.random()-.5)*0.02, rest:false}}));
+  shake=power*16*DPR;
+}
+
+function drawGround(){
+  // 空
+  let g=ctx.createLinearGradient(0,0,0,HZ);g.addColorStop(0,'#5cc6ff');g.addColorStop(1,'#d9f3ff');
+  ctx.fillStyle=g;ctx.fillRect(-50,-50,W+100,HZ+50);
+  // 地面
+  g=ctx.createLinearGradient(0,HZ,0,H);g.addColorStop(0,'#c8efb0');g.addColorStop(1,'#5fbf3f');
+  ctx.fillStyle=g;ctx.fillRect(-50,HZ,W+100,H-HZ+50);
+  // 奥へのびる線
+  ctx.strokeStyle='#ffffff55';ctx.lineWidth=2*DPR;
+  for(let x=-20;x<=20;x+=2){const a=proj(x,0,camZ+NEAR+0.01),b=proj(x,0,camZ+400);if(!a||!b)continue;ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}
+  // 横の線（カメラと一緒に流れる）
+  const start=Math.ceil((camZ+NEAR)/4)*4;
+  for(let z=start;z<camZ+300;z+=4){const a=proj(-40,0,z),b=proj(40,0,z);ctx.beginPath();ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);ctx.stroke()}
+}
+
+function drawBlock(b){
+  const p=proj(b.x,b.y,b.z);if(!p)return;
+  const px=b.size*p.s;if(px<2)return;
+  // 地面の影
+  const sh=proj(b.x,0,b.z);
+  if(sh){ctx.fillStyle='rgba(0,0,0,'+Math.max(0.05,0.3-b.y*0.05)+')';ctx.beginPath();ctx.ellipse(sh.x,sh.y,px*0.45,px*0.12,0,0,Math.PI*2);ctx.fill()}
+  ctx.save();ctx.translate(p.x,p.y);ctx.rotate(b.rot);
+  ctx.font=`900 ${px}px "Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif`;
+  ctx.textAlign='center';ctx.textBaseline='middle';
+  // 厚み（奥側へ押し出す）
+  const d=px*0.14,stepPx=Math.max(1,px*0.02);
+  ctx.fillStyle=shadeColor(b.color,-0.45);
+  for(let k=d;k>0;k-=stepPx)ctx.fillText(b.ch,0,-k*0.6);
+  ctx.lineWidth=px*0.1;ctx.strokeStyle='#222';ctx.lineJoin='round';
+  ctx.strokeText(b.ch,0,0);
+  ctx.fillStyle=b.color;ctx.fillText(b.ch,0,0);
+  ctx.fillStyle='#ffffff55';ctx.fillText(b.ch,-px*0.03,-px*0.04);
+  ctx.restore();
+}
+function shadeColor(hex,amt){const n=parseInt(hex.slice(1),16);let r=n>>16,g=n>>8&255,b=n&255;const f=v=>Math.max(0,Math.min(255,Math.round(v*(1+amt))));return`rgb(${f(r)},${f(g)},${f(b)})`}
+
+function step(){
+  const now=performance.now();
+  while(queue.length&&queue[0].at<=now)blocks.push(queue.shift().b);
+  if(blocks.length>150)blocks.splice(0,blocks.length-150);
+  for(const b of blocks){
+    if(b.rest)continue;
+    b.vy-=0.0018;b.x+=b.vx;b.y+=b.vy;b.z+=b.vz;b.rot+=b.vr;
+    const floor=b.size*0.45;
+    if(b.y<floor){b.y=floor;b.vy*=-0.4;b.vz*=0.6;b.vx*=0.6;b.vr*=0.5;
+      if(Math.abs(b.vy)<0.01&&b.vz<0.02){b.rest=true;b.rot*=0.3}}
+  }
+  ctx.setTransform(1,0,0,1,0,0);
+  if(shake>0){ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);shake*=0.85;if(shake<.5)shake=0}
+  drawGround();
+  // 奥のものから描く
+  [...blocks].sort((a,b)=>b.z-a.z).forEach(drawBlock);
+  document.getElementById('bar').style.width=Math.min(100,vol*300)+'%';
+  requestAnimationFrame(step);
+}
+step();
+
+// マイク音量
+let audioOn=false,rec=null,recOK=false;
+async function startAudio(){
+  const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+  const ac=new (window.AudioContext||window.webkitAudioContext)();
+  const src=ac.createMediaStreamSource(stream),an=ac.createAnalyser();an.fftSize=1024;src.connect(an);
+  const buf=new Float32Array(an.fftSize);
+  let loud=0,quiet=0;
+  (function loop(){
+    an.getFloatTimeDomainData(buf);let s=0;for(const v of buf)s+=v*v;
+    vol=Math.sqrt(s/buf.length);peak=Math.max(peak*0.995,vol);
+    if(!recOK){
+      if(vol>0.12){loud++;quiet=0}else{quiet++; if(loud>8&&quiet>10){launch(['ワー','オー','ドーン','ヤー'][Math.floor(Math.random()*4)],peak*3);loud=0;peak=0}}
+    }
+    requestAnimationFrame(loop);
+  })();
+}
+function startRec(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){document.getElementById('msg').textContent='このブラウザは文字起こし非対応。大声で「ワー！」が飛ぶよ（Chrome推奨）';return}
+  recOK=true;
+  rec=new SR();rec.lang='ja-JP';rec.continuous=true;rec.interimResults=true;
+  rec.onresult=e=>{
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const r=e.results[i];
+      document.getElementById('heard').textContent=r[0].transcript;
+      if(r.isFinal){launch(r[0].transcript,peak*3);peak=0}
+    }
+  };
+  rec.onend=()=>{if(audioOn)try{rec.start()}catch(e){}};
+  rec.onerror=e=>{if(e.error==='not-allowed'){recOK=false;document.getElementById('msg').textContent='文字起こしが使えません。大声で「ワー！」が飛ぶよ'}};
+  rec.start();
+}
+document.getElementById('mic').onclick=async function(){
+  if(audioOn){audioOn=false;this.classList.remove('on');this.textContent='START';try{rec&&rec.stop()}catch(e){};return}
+  try{await startAudio()}catch(e){document.getElementById('msg').textContent='マイクが使えません。下の入力欄から発射してね';return}
+  audioOn=true;this.classList.add('on');this.textContent='STOP';
+  document.getElementById('msg').textContent='さけべ！大きい声ほどデカく遠くへ飛ぶ！';
+  startRec();
+};
+const fire=()=>{const t=document.getElementById('txt');launch(t.value||'ドーン',0.8);t.value=''};
+document.getElementById('fire').onclick=fire;
+document.getElementById('txt').addEventListener('keydown',e=>{if(e.key==='Enter')fire()});
+document.getElementById('clear').onclick=()=>{blocks=[];queue=[]};
+</script>
+</body>
+</html>
