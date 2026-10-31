@@ -146,13 +146,18 @@ function startRec(){
   if(!SR){document.getElementById('msg').textContent='このブラウザは文字起こし非対応。大声で「ワー！」が飛ぶよ（Chrome推奨）';return}
   recOK=true;
   rec=new SR();rec.lang='ja-JP';rec.continuous=true;rec.interimResults=true;
+  // 確定を待たず、聞き取れた分からすぐ発射する
+  const sent={};
   rec.onresult=e=>{
     for(let i=e.resultIndex;i<e.results.length;i++){
-      const r=e.results[i];
-      document.getElementById('heard').textContent=r[0].transcript;
-      if(r.isFinal){launch(r[0].transcript,peak*3);peak=0}
+      const r=e.results[i],t=r[0].transcript.replace(/\s/g,'');
+      document.getElementById('heard').textContent=t;
+      const done=sent[i]||0;
+      if(t.length>done){launch(t.slice(done),Math.max(peak,vol)*3);sent[i]=t.length;peak=0}
+      if(r.isFinal)sent[i]=Math.max(sent[i]||0,t.length);
     }
   };
+  rec.onstart=()=>{for(const k in sent)delete sent[k]};
   rec.onend=()=>{if(audioOn)try{rec.start()}catch(e){}};
   rec.onerror=e=>{if(e.error==='not-allowed'){recOK=false;document.getElementById('msg').textContent='文字起こしが使えません。大声で「ワー！」が飛ぶよ'}};
   rec.start();
